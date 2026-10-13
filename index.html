@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Habit Tracker</title>
+  <meta name="description" content="Pencatat kebiasaan harian yang sederhana.">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" type="image/png" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="Habit Tracker">
+  <link rel="preload" href="fonts/montserrat-latin-500-normal.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="app" v-cloak>
+
+    <!-- ============ MEMUAT ============ -->
+    <div v-if="!ready" class="center-screen">
+      <p class="muted">Memuat…</p>
+    </div>
+
+    <!-- ============ LOGIN / DAFTAR ============ -->
+    <main v-else-if="!user" class="auth">
+      <div class="auth-card">
+        <h1 class="brand">Habit Tracker</h1>
+        <p class="muted auth-sub" v-if="authMode === 'login'">Masuk untuk melihat kebiasaanmu.</p>
+        <p class="muted auth-sub" v-else>Buat akun baru. Gratis dan sederhana.</p>
+
+        <form @submit.prevent="submitAuth" novalidate>
+          <label class="field">
+            <span>{{ mode === 'cloud' && authMode === 'login' ? 'Email' : 'Username' }}</span>
+            <input :type="mode === 'cloud' && authMode === 'login' ? 'email' : 'text'" v-model="form.username" :autocomplete="mode === 'cloud' && authMode === 'login' ? 'email' : 'username'" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="100" required>
+          </label>
+
+          <template v-if="authMode === 'register'">
+            <label class="field">
+              <span>Email</span>
+              <input type="email" v-model="form.email" autocomplete="email" inputmode="email" autocapitalize="none" required>
+            </label>
+            <p class="hint">Email digunakan untuk masuk dan verifikasi akun.</p>
+          </template>
+
+          <label class="field">
+            <span>Kata sandi</span>
+            <input type="password" v-model="form.password" :autocomplete="authMode === 'login' ? 'current-password' : 'new-password'" required>
+          </label>
+          <p class="hint" v-if="authMode === 'register'">Minimal 8 karakter.</p>
+
+          <p class="msg error" v-if="authError" role="alert">{{ authError }}</p>
+          <p class="msg info" v-if="authInfo">{{ authInfo }}</p>
+
+          <button class="btn primary block" type="submit" :disabled="authBusy">
+            <span v-if="authBusy">Mohon tunggu…</span>
+            <span v-else-if="authMode === 'login'">Masuk</span>
+            <span v-else>Daftar</span>
+          </button>
+        </form>
+
+        <div class="auth-links">
+          <template v-if="authMode === 'login'">
+            <button class="link" type="button" @click="setAuthMode('register')">Belum punya akun? Daftar</button>
+          </template>
+          <template v-else>
+            <button class="link" type="button" @click="setAuthMode('login')">Kembali ke halaman masuk</button>
+          </template>
+        </div>
+
+        <p class="local-note" v-if="mode === 'local'">
+          Mode lokal: akun dan data hanya tersimpan di perangkat ini dan belum tersinkron antarperangkat.
+        </p>
+        <p class="local-note" v-else>
+          Mode Supabase: data tersinkron aman ke akun Anda. Sesi tetap tersimpan di perangkat ini sampai Anda keluar.
+        </p>
+      </div>
+    </main>
+
+    <!-- ============ APLIKASI UTAMA ============ -->
+    <template v-else>
+      <header class="topbar">
+        <div class="topbar-inner">
+          <span class="brand small">Habit Tracker</span>
+          <button class="link" type="button" @click="logout">Keluar ({{ user.username }})</button>
+        </div>
+      </header>
+
+      <main class="page">
+
+        <p class="msg error" v-if="loadError" role="alert">
+          {{ loadError }}
+          <button class="link" type="button" @click="loadData">Coba lagi</button>
+        </p>
+
+        <!-- ---------- HARI INI ---------- -->
+        <section v-if="tab === 'today'">
+          <p class="date-label">{{ todayLabel }}</p>
+          <h1 class="title">{{ greeting }}, {{ user.username }}</h1>
+
+          <div class="card summary" aria-live="polite">
+            <div class="summary-top">
+              <p class="summary-text">Progres: <strong>{{ todayDone }}</strong> dari <strong>{{ activeHabits.length }}</strong> kebiasaan selesai.</p>
+              <p class="percent">{{ percent }}%</p>
+            </div>
+            <div class="bar" role="progressbar" :aria-valuenow="percent" aria-valuemin="0" aria-valuemax="100">
+              <div class="bar-fill" :style="{ width: percent + '%' }"></div>
+            </div>
+          </div>
+
+          <h2 class="section-title">Kebiasaan Hari Ini</h2>
+
+          <div v-if="loading && habits.length === 0" class="muted pad">Memuat…</div>
+
+          <div v-else-if="activeHabits.length === 0" class="card empty">
+            <p>Belum ada kebiasaan.</p>
+            <button class="btn primary" type="button" @click="tab = 'habits'">Tambah kebiasaan</button>
+          </div>
+
+          <ul class="list" v-else>
+            <li v-for="h in activeHabits" :key="h.id">
+              <button type="button" class="habit-row" :class="{ done: isDone(h.id, today), busy: isPending(h.id, today) }"
+                      :aria-pressed="isDone(h.id, today)" :disabled="isPending(h.id, today)"
+                      @click="toggle(h, today)">
+                <span class="checkbox" aria-hidden="true"></span>
+                <span class="habit-text">
+                  <span class="habit-name">{{ h.name }}</span>
+                  <span class="habit-meta">{{ streakText(h) }}</span>
+                </span>
+                <span class="status">{{ isDone(h.id, today) ? 'Selesai' : 'Belum' }}</span>
+              </button>
+            </li>
+          </ul>
+
+          <p class="local-note" v-if="mode === 'local'">
+            Mode lokal: perubahan tersimpan di perangkat ini saja.
+          </p>
+        </section>
+
+        <!-- ---------- RIWAYAT ---------- -->
+        <section v-if="tab === 'history'">
+          <h1 class="title">Riwayat</h1>
+
+          <div class="card">
+            <div class="cal-head">
+              <button type="button" class="icon-btn" @click="prevMonth" aria-label="Bulan sebelumnya">‹</button>
+              <p class="cal-title">{{ monthLabel }}</p>
+              <button type="button" class="icon-btn" @click="nextMonth" :disabled="!canNext" aria-label="Bulan berikutnya">›</button>
+            </div>
+
+            <div class="cal-grid cal-week">
+              <span v-for="w in weekdays" :key="w">{{ w }}</span>
+            </div>
+            <div class="cal-grid">
+              <template v-for="(c, i) in cells" :key="i">
+                <span v-if="!c" class="cal-empty"></span>
+                <button v-else type="button" class="cal-day"
+                        :class="{ today: c.isToday, selected: c.date === selectedDate, future: c.future }"
+                        :disabled="c.future" @click="selectedDate = c.date"
+                        :aria-label="c.label">
+                  <span class="cal-num">{{ c.day }}</span>
+                  <span class="dot" :class="c.state"></span>
+                </button>
+              </template>
+            </div>
+            <p class="legend">
+              <span class="dot all"></span> semua selesai
+              <span class="dot some"></span> sebagian
+            </p>
+          </div>
+
+          <h2 class="section-title">{{ selectedLabel }}</h2>
+
+          <div v-if="activeHabits.length === 0" class="card empty">
+            <p>Belum ada kebiasaan aktif.</p>
+          </div>
+
+          <template v-else>
+            <p class="muted small-text">{{ selectedDoneList.length }} dari {{ activeHabits.length }} kebiasaan selesai.</p>
+
+            <h3 class="sub-title" v-if="selectedDoneList.length">Selesai</h3>
+            <ul class="list" v-if="selectedDoneList.length">
+              <li v-for="h in selectedDoneList" :key="h.id">
+                <button type="button" class="habit-row done compact" :disabled="isPending(h.id, selectedDate)" @click="toggle(h, selectedDate)" :aria-pressed="true">
+                  <span class="checkbox" aria-hidden="true"></span>
+                  <span class="habit-text"><span class="habit-name">{{ h.name }}</span></span>
+                </button>
+              </li>
+            </ul>
+
+            <h3 class="sub-title" v-if="selectedTodoList.length">Belum selesai</h3>
+            <ul class="list" v-if="selectedTodoList.length">
+              <li v-for="h in selectedTodoList" :key="h.id">
+                <button type="button" class="habit-row compact" :disabled="isPending(h.id, selectedDate)" @click="toggle(h, selectedDate)" :aria-pressed="false">
+                  <span class="checkbox" aria-hidden="true"></span>
+                  <span class="habit-text"><span class="habit-name">{{ h.name }}</span></span>
+                </button>
+              </li>
+            </ul>
+            <p class="hint pad-top">Ketuk kebiasaan untuk menandai atau membatalkan pada tanggal ini.</p>
+          </template>
+        </section>
+
+        <!-- ---------- KEBIASAAN ---------- -->
+        <section v-if="tab === 'habits'">
+          <h1 class="title">Kebiasaan</h1>
+
+          <form class="card add-form" @submit.prevent="addHabit" novalidate>
+            <label class="field">
+              <span>Kebiasaan baru</span>
+              <input type="text" v-model="newName" maxlength="60" placeholder="Contoh: Olahraga pagi" autocomplete="off">
+            </label>
+            <button class="btn primary block" type="submit" :disabled="adding">{{ adding ? 'Menyimpan…' : 'Tambah' }}</button>
+          </form>
+
+          <h2 class="section-title">Aktif ({{ activeHabits.length }})</h2>
+          <div v-if="activeHabits.length === 0" class="card empty"><p>Belum ada kebiasaan aktif.</p></div>
+          <ul class="list" v-else>
+            <li v-for="h in activeHabits" :key="h.id" class="card manage-row">
+              <div class="manage-text">
+                <p class="habit-name">{{ h.name }}</p>
+                <p class="habit-meta">{{ streakText(h) }} · Total {{ totalOf(h) }} hari</p>
+              </div>
+              <button type="button" class="btn small" @click="openEdit(h)">Ubah</button>
+            </li>
+          </ul>
+
+          <template v-if="archivedHabits.length">
+            <h2 class="section-title">Diarsipkan ({{ archivedHabits.length }})</h2>
+            <ul class="list">
+              <li v-for="h in archivedHabits" :key="h.id" class="card manage-row">
+                <div class="manage-text">
+                  <p class="habit-name muted-name">{{ h.name }}</p>
+                  <p class="habit-meta">Total {{ totalOf(h) }} hari</p>
+                </div>
+                <button type="button" class="btn small" @click="openEdit(h)">Ubah</button>
+              </li>
+            </ul>
+          </template>
+        </section>
+      </main>
+
+      <!-- ---------- NAVIGASI BAWAH ---------- -->
+      <nav class="tabbar" aria-label="Menu utama">
+        <div class="tabbar-inner">
+          <button type="button" :class="{ active: tab === 'today' }" @click="tab = 'today'" :aria-current="tab === 'today' ? 'page' : null">Hari Ini</button>
+          <button type="button" :class="{ active: tab === 'history' }" @click="openHistory" :aria-current="tab === 'history' ? 'page' : null">Riwayat</button>
+          <button type="button" :class="{ active: tab === 'habits' }" @click="tab = 'habits'" :aria-current="tab === 'habits' ? 'page' : null">Kebiasaan</button>
+        </div>
+      </nav>
+
+      <!-- ---------- DIALOG UBAH ---------- -->
+      <div class="overlay" v-if="editing" @click.self="editing = null">
+        <div class="sheet" role="dialog" aria-modal="true" aria-label="Ubah kebiasaan">
+          <h2 class="sheet-title">Ubah kebiasaan</h2>
+          <form @submit.prevent="saveEdit" novalidate>
+            <label class="field">
+              <span>Nama</span>
+              <input type="text" v-model="editing.name" maxlength="60" autocomplete="off">
+            </label>
+            <p class="msg error" v-if="editing.error" role="alert">{{ editing.error }}</p>
+            <button class="btn primary block" type="submit" :disabled="editing.busy">Simpan nama</button>
+          </form>
+          <div class="sheet-actions">
+            <button type="button" class="btn block" :disabled="editing.busy" @click="toggleArchive">
+              {{ editing.status === 'active' ? 'Arsipkan' : 'Aktifkan kembali' }}
+            </button>
+            <button type="button" class="btn danger block" :disabled="editing.busy" @click="askDelete">Hapus</button>
+            <button type="button" class="btn ghost block" @click="editing = null">Tutup</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ---------- DIALOG KONFIRMASI HAPUS ---------- -->
+      <div class="overlay" v-if="confirmDel" @click.self="confirmDel = null">
+        <div class="sheet" role="alertdialog" aria-modal="true" aria-label="Konfirmasi hapus">
+          <h2 class="sheet-title">Hapus kebiasaan?</h2>
+          <p class="sheet-text">“{{ confirmDel.name }}” beserta seluruh riwayatnya akan dihapus permanen dan tidak bisa dikembalikan.</p>
+          <div class="sheet-actions">
+            <button type="button" class="btn danger block" :disabled="confirmDel.busy" @click="doDelete">{{ confirmDel.busy ? 'Menghapus…' : 'Ya, hapus' }}</button>
+            <button type="button" class="btn ghost block" :disabled="confirmDel.busy" @click="confirmDel = null">Batal</button>
+          </div>
+        </div>
+      </div>
+    </template>
+
+    <!-- ---------- PESAN SINGKAT ---------- -->
+    <div class="toast" :class="toast.type" v-if="toast.text" role="status" aria-live="polite">{{ toast.text }}</div>
+  </div>
+
+  <script src="vendor/vue.global.prod.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3"></script>
+  <script src="supabase-config.js"></script>
+  <script src="utils.js"></script>
+  <script src="storage.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
