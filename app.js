@@ -268,7 +268,7 @@
       }
       function streakText(h) {
         var n = streakOf(h);
-        return n > 0 ? 'Streak ' + n + ' hari' : 'Belum ada streak';
+        return n > 0 ? 'Istiqomah ' + n + ' hari' : 'Belum istiqomah';
       }
       function totalOf(h) {
         var prefix = h.id + '|';
@@ -336,6 +336,31 @@
       var selectedTodoList = computed(function () {
         return activeHabits.value.filter(function (h) { return !isDone(h.id, selectedDate.value); });
       });
+            // Rekap per kebiasaan untuk bulan yang sedang ditampilkan di kalender
+      var habitMonth = computed(function () {
+        var daysInMonth = new Date(cal.y, cal.m + 1, 0).getDate();
+        return activeHabits.value.map(function (h) {
+          var days = [];
+          var done = 0;
+          var elapsed = 0;
+          for (var d = 1; d <= daysInMonth; d++) {
+            var date = cal.y + '-' + HT.pad(cal.m + 1) + '-' + HT.pad(d);
+            var future = date > today.value;
+            var ok = !future && isDone(h.id, date);
+            if (!future) elapsed++;
+            if (ok) done++;
+            days.push({ day: d, date: date, future: future, done: ok });
+          }
+          return {
+            id: h.id,
+            name: h.name,
+            done: done,
+            elapsed: elapsed,
+            percent: elapsed ? Math.round((done / elapsed) * 100) : 0,
+            days: days
+          };
+        });
+      });
 
       function openHistory() {
         tab.value = 'history';
@@ -386,7 +411,8 @@
         weekdays: weekdays, monthLabel: monthLabel, canNext: canNext, cells: cells,
         prevMonth: prevMonth, nextMonth: nextMonth,
         selectedLabel: selectedLabel, selectedDoneList: selectedDoneList, selectedTodoList: selectedTodoList,
-        openHistory: openHistory
+        openHistory: openHistory,
+        habitMonth: habitMonth
       };
     }
   }).mount('#app');

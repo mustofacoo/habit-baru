@@ -288,3 +288,33 @@ ul { list-style: none; margin: 0; padding: 0; }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; }
 }
+
+/* ---------- Riwayat per kebiasaan ---------- */
+.hm-card { display: block; }
+.hm-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.hm-count { margin: 0; font-size: 0.85rem; opacity: 0.75; white-space: nowrap; }
+.hm-days {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(22px, 1fr));
+  gap: 4px;
+  margin-top: 12px;
+}
+.hm-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 22px;
+  border-radius: 5px;
+  font-size: 0.65rem;
+  background: rgba(128, 128, 128, 0.18);
+}
+.hm-day.done { background: currentColor; }
+.hm-day.done { color: inherit; }
+.hm-day.done::before { content: ''; }
+.hm-day.future { opacity: 0.35; }

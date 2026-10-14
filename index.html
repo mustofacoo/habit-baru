@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>Habit Tracker</title>
-  <meta name="description" content="Pencatat kebiasaan harian yang sederhana.">
+  <title>Belajar Istiqomah</title>
+  <meta name="description" content="Pencatat kegiatan harian yang sederhana.">
   <meta name="theme-color" content="#ffffff">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" type="image/png" href="icons/icon-192.png">
@@ -20,15 +20,15 @@
 
     <!-- ============ MEMUAT ============ -->
     <div v-if="!ready" class="center-screen">
-      <p class="muted">Memuat…</p>
+      <p class="muted">bismillah</p>
     </div>
 
     <!-- ============ LOGIN / DAFTAR ============ -->
     <main v-else-if="!user" class="auth">
       <div class="auth-card">
-        <h1 class="brand">Habit Tracker</h1>
-        <p class="muted auth-sub" v-if="authMode === 'login'">Masuk untuk melihat kebiasaanmu.</p>
-        <p class="muted auth-sub" v-else>Buat akun baru. Gratis dan sederhana.</p>
+        <h1 class="brand">Belajar Istiqomah</h1>
+        <p class="muted auth-sub" v-if="authMode === 'login'">Masuk</p>
+        <p class="muted auth-sub" v-else>Buat akun baru. Gratis, aman dan sederhana.</p>
 
         <form @submit.prevent="submitAuth" novalidate>
           <label class="field">
@@ -82,7 +82,7 @@
     <template v-else>
       <header class="topbar">
         <div class="topbar-inner">
-          <span class="brand small">Habit Tracker</span>
+          <span class="brand small">Belajar Istiqomah</span>
           <button class="link" type="button" @click="logout">Keluar ({{ user.username }})</button>
         </div>
       </header>
@@ -198,8 +198,29 @@
                 </button>
               </li>
             </ul>
-            <p class="hint pad-top">Ketuk kebiasaan untuk menandai atau membatalkan pada tanggal ini.</p>
           </template>
+                              <h2 class="section-title">Per Kebiasaan · {{ monthLabel }}</h2>
+
+          <div v-if="habitMonth.length === 0" class="card empty">
+            <p>Belum ada kebiasaan aktif.</p>
+          </div>
+
+          <ul class="list" v-else>
+            <li v-for="h in habitMonth" :key="h.id" class="card hm-card">
+              <div class="hm-top">
+                <p class="habit-name">{{ h.name }}</p>
+                <p class="hm-count"><strong>{{ h.done }}</strong> / {{ h.elapsed }} hari · {{ h.percent }}%</p>
+              </div>
+              <div class="bar" role="progressbar" :aria-valuenow="h.percent" aria-valuemin="0" aria-valuemax="100">
+                <div class="bar-fill" :style="{ width: h.percent + '%' }"></div>
+              </div>
+              <div class="hm-days" aria-hidden="true">
+                <span v-for="d in h.days" :key="d.date" class="hm-day"
+                      :class="{ done: d.done, future: d.future }"
+                      :title="d.day + ' ' + monthLabel">{{ d.day }}</span>
+              </div>
+            </li>
+          </ul>
         </section>
 
         <!-- ---------- KEBIASAAN ---------- -->
